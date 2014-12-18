@@ -6,5 +6,5 @@ description = "A command line utility to turn rust code into syntax highlighted 
 authors     = ["Inspiravetion <charlie.lipford.code@gmail.com>"]
 repository  = "https://github.com/Inspiravetion/highlightrs"
 readme      = "./README.md"
-keywords    = ["Syntax Highlighting", "highlight", "code"]
+keywords    = ["syntax", "highlighting", "highlight", "code"]
 license     = "MIT"
