@@ -1,0 +1,6 @@
+[package]
+
+name = "highlightrs"
+version = "0.0.1"
+description = "A command line utility to turn rust code into syntax highlighted html"
+authors = ["Inspiravetion <charlie.lipford.code@gmail.com>"]
