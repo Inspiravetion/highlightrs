@@ -2,9 +2,12 @@
 
 extern crate getopts;
 extern crate rustdoc;
+extern crate syntax;
 
 use getopts::{optopt, optflag, getopts, usage};
+
 use rustdoc::html::highlight::highlight;
+
 use std::io::fs::File;
 use std::io::{FileMode, FileAccess};
 use std::os;
