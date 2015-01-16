@@ -499,13 +499,14 @@ impl<Style> ToHtml<Style> for ast::Generics where Style : ToCss {
 
         add_token!(tokens, Operator, ">");
 
-        // if self.where_clause.predicates.len() > 0 {
-        //     add_token!(tokens, Keyword, "where");
-        // }
+        if self.where_clause.predicates.len() > 0 {
+            add_token!(tokens, Keyword, "where");
 
-        // for predicate in self.where_clause.predicates.iter() {
-        //     //do this later 
-        // }
+            for predicate in self.where_clause.predicates.iter() {
+                //do this later 
+            }
+        }
+
     }
 }
 
