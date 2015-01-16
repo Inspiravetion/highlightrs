@@ -25,7 +25,7 @@ trait ToHtml<Style> where Style : ToCss {
 
         restore_whitespace(original, &mut span_buff);
 
-        write!(f, "<pre><code>");
+        write!(f, "<pre style=\"background:#efffef\"><code>");
 
         for token in span_buff.iter() {
             write!(f, "<span {}>{}</span>", style.clone().to_css(&token.class), token.text);
@@ -72,9 +72,13 @@ pub enum Class {
     TyDecl,
     FieldDecl,
     VariantDecl,
+    LifeTimeDecl,
     GenDecl,
     GenConstraint,
+    Gen,
+    LifeTime,
     FnCall,
+    ReturnStmt, //for implicit and explicit returns...darker orange?
     MacCall
 }
 
@@ -105,6 +109,11 @@ where Markup : ToHtml<Style>, Style : ToCss {
     }
 }
 
+//TODO:
+//implement ToHtml for Decl(ast::Type) { ... }
+//so then you could change the tohtml characteristics 
+struct Declaration<T>(T); 
+
 ///////////////////////////////////////////////////////////////////////////////
 //                                                                           //
 //                               Convenience Macros                          //                                      
@@ -133,6 +142,37 @@ macro_rules! add_spans{
             for fairy in $enchanted_forest {
                 let tinkerbell = fairy as &ToHtml<Style>;
                 tinkerbell.add_span_tokens($fairy_dust);
+            }
+        }
+    );
+}
+
+macro_rules! between_each {
+    ($thing:pat in $things:expr $outter_stmts:block => $inbetween_stmts:block) 
+        => 
+    (
+        {
+            let len = $things.len();
+            if len != 0 {
+                let mut parts = $things.iter();
+
+                match parts.next() {
+                    Some($thing) => $outter_stmts,
+                    None   => panic!("called between_each! on an empty container!")
+                };
+
+                for $thing in parts.take(len - 2) {
+                    $inbetween_stmts
+                    $outter_stmts
+                }
+
+                match parts.last() {
+                    Some($thing) => {
+                        $inbetween_stmts
+                        $outter_stmts
+                    },
+                    None   => {}
+                };
             }
         }
     );
@@ -196,10 +236,11 @@ struct DefaultInline;
 impl ToCss for DefaultInline {
     fn to_css(self, clazz : &Class) -> String {
         match *clazz {
-            Class::Keyword     => "style=\"color:#07c7dd\"",
+            Class::Keyword     => "style=\"color:#ea4646;font-weight:bold\"",//"style=\"color:#07c7dd\"",
             Class::Operator    => "style=\"color:#07c7dd\"",
             Class::CrateDecl   => "style=\"color:#f4824e\"",
             Class::UseDecl | Class::GenDecl | Class::TyDecl    => "style=\"color:#f4824e\"",
+            Class::LifeTimeDecl => "style=\"color:#ff4242\"",
             Class::Attribute   => "style=\"color:#7f7f7f\"",
 
             Class::Type        => "style=\"color:#000000\"",
@@ -401,7 +442,7 @@ impl<Style> ToHtml<Style> for Box<ast::Item> where Style : ToCss {
                 add_token!(tokens, Keyword, "type");
                 add_token!(tokens, TyDecl, self.ident.name.as_str());
 
-                let gen = generics as &ToHtml<Style>;
+                let gen = &Declaration(generics) as &ToHtml<Style>;
                 gen.add_span_tokens(tokens);
 
                 add_token!(tokens, Operator, "=");
@@ -432,11 +473,79 @@ impl<Style> ToHtml<Style> for Box<ast::Item> where Style : ToCss {
 
 impl<Style> ToHtml<Style> for ast::Generics where Style : ToCss {
     fn add_span_tokens(&self, tokens : &mut Vec<SpanToken>) {
-        //TODO: this is just a place holder for the real impl
+
+        if self.lifetimes.len() == 0 && self.ty_params.len() == 0 && self.where_clause.predicates.len() == 0 {
+            return
+        }
+
 
         add_token!(tokens, Operator, "<");
-        add_token!(tokens, GenDecl, "T");
+
+        between_each!(lifetime in self.lifetimes {
+            add_token!(tokens, LifeTime, lifetime.lifetime.name.as_str());
+        } => {
+            add_token!(tokens, Operator, ",");            
+        });
+
+        if self.ty_params.len() > 0 && self.lifetimes.len() > 0 {
+            add_token!(tokens, Operator, ",");            
+        }
+
+        between_each!(ty_param in self.ty_params.as_slice() {
+            add_token!(tokens, Gen, ty_param.ident.name.as_str());
+        } => {
+            add_token!(tokens, Operator, ",");            
+        });
+
         add_token!(tokens, Operator, ">");
+
+        // if self.where_clause.predicates.len() > 0 {
+        //     add_token!(tokens, Keyword, "where");
+        // }
+
+        // for predicate in self.where_clause.predicates.iter() {
+        //     //do this later 
+        // }
+    }
+}
+
+impl<'a, Style> ToHtml<Style> for Declaration<&'a ast::Generics> where Style : ToCss {
+    fn add_span_tokens(&self, tokens : &mut Vec<SpanToken>) {
+
+        let &Declaration(ref _self) = self;
+
+        if _self.lifetimes.len() == 0 && _self.ty_params.len() == 0 && _self.where_clause.predicates.len() == 0 {
+            return
+        }
+
+
+        add_token!(tokens, Operator, "<");
+
+        between_each!(lifetime in _self.lifetimes {
+            add_token!(tokens, LifeTimeDecl, lifetime.lifetime.name.as_str());
+        } => {
+            add_token!(tokens, Operator, ",");            
+        });
+
+        if _self.ty_params.len() > 0 && _self.lifetimes.len() > 0 {
+            add_token!(tokens, Operator, ",");            
+        }
+
+        between_each!(ty_param in _self.ty_params.as_slice() {
+            add_token!(tokens, GenDecl, ty_param.ident.name.as_str());
+        } => {
+            add_token!(tokens, Operator, ",");            
+        });
+
+        add_token!(tokens, Operator, ">");
+
+        // if _self.where_clause.predicates.len() > 0 {
+        //     add_token!(tokens, Keyword, "where");
+        // }
+
+        // for predicate in _self.where_clause.predicates.iter() {
+        //     //do this later 
+        // }
     }
 }
 
@@ -444,7 +553,12 @@ impl<Style> ToHtml<Style> for Box<ast::Ty> where Style : ToCss {
     fn add_span_tokens(&self, tokens : &mut Vec<SpanToken>) {
         match self.node {
             TyVec(ref ty) => {
+                add_token!(tokens, Operator, "[");
 
+                let ty = ty as &ToHtml<Style>;
+                ty.add_span_tokens(tokens);
+
+                add_token!(tokens, Operator, "]");
             },
             TyFixedLengthVec(ref ty, ref expr) => {
                 add_token!(tokens, Operator, "[");
@@ -642,8 +756,11 @@ fn main() {
     use syntax::ptr;
     pub use highlightrs::Highlited;
 
-    type Box<T> = ptr::Ptr<T>;
-    type Ptrs<T> = [Box<T>, ..4];
+    type Box<'l, T> = ptr::Ptr<'l, T>;
+    type BorrowedBox<'a, 'b, 'c, T1, T2> = ptr::BorrowedPtr<'a, 'b, 'c, T1, T2>;
+    type FourPtrs<T> = [Box<T>, ..4];
+    type Ptrs = [Box<T>];
+
     ";
 
     println!("{}", ::highlight::program(src, DefaultInline));
