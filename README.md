@@ -1,7 +1,7 @@
 highlightrs
 ===========
 
-"A command line utility to turn rust code into syntax highlighted html"
+"A command line utility to turn arbitrary rust code into syntax highlighted html"
 
 ```bash
 $> highlightrs 'let a = "b";'
