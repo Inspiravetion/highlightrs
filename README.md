@@ -3,6 +3,10 @@ highlightrs
 
 "A command line utility to turn arbitrary rust code into syntax highlighted html"
 
+Currently based on `rustdoc::html::highlight::highlight` but transitioning to using `syntax::parse::parser::Parser` to get an AST to then highlight.
+
+As of now,
+
 ```bash
 $> highlightrs 'let a = "b";'
 ```
