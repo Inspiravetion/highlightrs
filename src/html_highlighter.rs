@@ -1,6 +1,5 @@
 #![feature(slicing_syntax)]
-#![feature(macro_rules)]
-#![feature(globs)]
+#![feature(box_syntax)]
 
 extern crate syntax;
 
@@ -43,7 +42,7 @@ pub trait ToCss : Clone {
     fn to_css(self, clazz : &Class) -> String;
 }
 
-#[deriving(Show)]
+#[derive(Show)]
 pub enum Class {
     //If nothing else
     Default,
@@ -82,7 +81,7 @@ pub enum Class {
     MacCall
 }
 
-#[deriving(Show)]
+#[derive(Show)]
 struct SpanToken {
     class : Class,
     text  : String
@@ -97,9 +96,15 @@ impl SpanToken {
     }
 }
 
+impl fmt::String for SpanToken {
+    fn fmt(&self, f : &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", *self)
+    }
+}
+
 struct Highlighted<'a, Markup : ToHtml<Style>, Style : ToCss>(&'a str, Markup, Style);
 
-impl<'a, Markup, Style> fmt::Show for Highlighted<'a, Markup, Style> 
+impl<'a, Markup, Style> fmt::String for Highlighted<'a, Markup, Style> 
 where Markup : ToHtml<Style>, Style : ToCss {
 
     fn fmt(&self, f : &mut fmt::Formatter) -> fmt::Result {
@@ -148,7 +153,7 @@ macro_rules! add_spans{
 }
 
 macro_rules! between_each {
-    ($thing:pat in $things:expr $outter_stmts:block => $inbetween_stmts:block) 
+    ($thing:pat , $things:expr => $outter_stmts:block => $inbetween_stmts:block) 
         => 
     (
         {
@@ -219,7 +224,7 @@ pub mod highlight {
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
 
-#[deriving(Clone)]
+#[derive(Clone)]
 struct StyleSheet;
 impl ToCss for StyleSheet {
     fn to_css(self, clazz : &Class) -> String {
@@ -231,7 +236,7 @@ impl ToCss for StyleSheet {
     }
 }
 
-#[deriving(Clone)]
+#[derive(Clone)]
 struct DefaultInline;
 impl ToCss for DefaultInline {
     fn to_css(self, clazz : &Class) -> String {
@@ -437,8 +442,6 @@ impl<Style> ToHtml<Style> for Box<ast::Item> where Style : ToCss {
 
             },
             ItemTy(ref ty, ref generics) => {
-                println!("self: {}\n\nty: {}\n\ngenerics: {}", self, ty, generics);
-
                 add_token!(tokens, Keyword, "type");
                 add_token!(tokens, TyDecl, self.ident.name.as_str());
 
@@ -461,7 +464,7 @@ impl<Style> ToHtml<Style> for Box<ast::Item> where Style : ToCss {
             ItemTrait(ref unsafety, ref generics, ref ty_param_bounds, ref trait_items) => {
 
             },
-            ItemImpl(ref unsafety, ref generics, ref trait_ref, ref ty, ref  impls) => {
+            ItemImpl(ref unsafety, ref polarity, ref generics, ref trait_ref, ref ty, ref  impls) => {
 
             },
             ItemMac(ref mac) => {
@@ -481,7 +484,7 @@ impl<Style> ToHtml<Style> for ast::Generics where Style : ToCss {
 
         add_token!(tokens, Operator, "<");
 
-        between_each!(lifetime in self.lifetimes {
+        between_each!(lifetime , self.lifetimes => {
             add_token!(tokens, LifeTime, lifetime.lifetime.name.as_str());
         } => {
             add_token!(tokens, Operator, ",");            
@@ -491,7 +494,7 @@ impl<Style> ToHtml<Style> for ast::Generics where Style : ToCss {
             add_token!(tokens, Operator, ",");            
         }
 
-        between_each!(ty_param in self.ty_params.as_slice() {
+        between_each!(ty_param , self.ty_params.as_slice() => {
             add_token!(tokens, Gen, ty_param.ident.name.as_str());
         } => {
             add_token!(tokens, Operator, ",");            
@@ -519,10 +522,9 @@ impl<'a, Style> ToHtml<Style> for Declaration<&'a ast::Generics> where Style : T
             return
         }
 
-
         add_token!(tokens, Operator, "<");
 
-        between_each!(lifetime in _self.lifetimes {
+        between_each!(lifetime , _self.lifetimes => {
             add_token!(tokens, LifeTimeDecl, lifetime.lifetime.name.as_str());
         } => {
             add_token!(tokens, Operator, ",");            
@@ -532,7 +534,7 @@ impl<'a, Style> ToHtml<Style> for Declaration<&'a ast::Generics> where Style : T
             add_token!(tokens, Operator, ",");            
         }
 
-        between_each!(ty_param in _self.ty_params.as_slice() {
+        between_each!(ty_param , _self.ty_params.as_slice() => {
             add_token!(tokens, GenDecl, ty_param.ident.name.as_str());
         } => {
             add_token!(tokens, Operator, ",");            
@@ -568,7 +570,7 @@ impl<Style> ToHtml<Style> for Box<ast::Ty> where Style : ToCss {
                 ty.add_span_tokens(tokens);
 
                 //TODO:...this should be a ; with the new grammar change
-                add_token!(tokens, Operator, ",");
+                add_token!(tokens, Operator, ";");
                 add_token!(tokens, Operator, "..");
 
                 //TODO:...make this a real call on the expr
@@ -581,9 +583,6 @@ impl<Style> ToHtml<Style> for Box<ast::Ty> where Style : ToCss {
 
             },
             TyRptr(ref lifetime, ref mut_ty) => {
-
-            },
-            TyClosure(ref closure_ty) => {
 
             },
             TyBareFn(ref bare_fn_ty) => {
@@ -731,7 +730,7 @@ fn restore_whitespace(original : &str, tokens : &mut Vec<SpanToken>) {
     let mut original = original;
 
     for token in tokens.iter_mut() {
-        let index = match original.find_str(token.text[]) {
+        let index = match original.find_str(&token.text[]) {
             Some(i) => i,
             None    => panic!("When trying to restore whitespace, the token {} wasn't found in the original text", token)
         };
@@ -739,10 +738,10 @@ fn restore_whitespace(original : &str, tokens : &mut Vec<SpanToken>) {
         let text_len = token.text.len();
         
         let mut whitespace = original[0..index].to_string();
-        whitespace.push_str(token.text[]);
+        whitespace.push_str(&token.text[]);
         token.text = whitespace;
         
-        original = original[(index + text_len)..];
+        original = &original[(index + text_len)..];
     }
 }
 
@@ -759,7 +758,7 @@ fn main() {
 
     type Box<'l, T> = ptr::Ptr<'l, T>;
     type BorrowedBox<'a, 'b, 'c, T1, T2> = ptr::BorrowedPtr<'a, 'b, 'c, T1, T2>;
-    type FourPtrs<T> = [Box<T>, ..4];
+    type FourPtrs<T> = [Box<T>; ..4];
     type Ptrs = [Box<T>];
 
     ";
